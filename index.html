@@ -5,37 +5,46 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>ブロックサプライズ コミュニティ</title>
   <style>
-    body { font-family:"Noto Serif JP",serif; background:#f7f3eb; margin:0; }
+    :root { --bg:#f7f3eb; --ink:#2f2a26; --muted:#7a6f6f; --accent:#3a2f2f; --card:#fff; }
+    body { font-family:"Noto Serif JP",serif; background:var(--bg); color:var(--ink); margin:0; }
     main { max-width:860px; margin:0 auto; padding:20px; }
-    h1 { margin:0 0 12px; color:#3a2f2f; }
-    .post { background:#fff; border-radius:12px; box-shadow:0 4px 12px rgba(0,0,0,.08);
+    h1 { margin:0 0 12px; color:var(--accent); }
+    .post { background:var(--card); border-radius:12px; box-shadow:0 4px 12px rgba(0,0,0,.08);
             padding:12px; margin:12px 0; }
     .meta { font-size:.9rem; color:#777; margin-bottom:6px; }
-    .nick { font-weight:bold; color:#3a2f2f; }
+    .nick { font-weight:bold; color:var(--accent); }
     .hidden { display:none; }
+    /* 投稿ボタン */
     #postToggle {
       position:fixed; right:20px; bottom:20px;
-      background:#3a2f2f; color:#fff; border:none; border-radius:24px;
-      padding:12px 18px; font-weight:600; box-shadow:0 6px 18px rgba(0,0,0,.2);
+      background:var(--accent); color:#fff; border:none; border-radius:24px;
+      padding:12px 18px; font-weight:600; box-shadow:0 6px 18px rgba(0,0,0,.2); cursor:pointer;
     }
+    /* 投稿バー */
     #postBar {
       position:fixed; left:0; right:0; bottom:0;
       background:#fff; border-top:1px solid #ddd; padding:10px;
     }
     #postForm { display:flex; gap:8px; }
     #postInput { flex:1; padding:10px; border-radius:8px; border:1px solid #ccc; }
-    #postForm button { background:#3a2f2f; color:#fff; border:none; border-radius:8px; padding:10px 16px; }
+    #postForm button { background:var(--accent); color:#fff; border:none; border-radius:8px; padding:10px 16px; cursor:pointer; }
+    /* 認証モーダル */
     #authModal {
-      position:fixed; top:0; left:0; right:0; bottom:0;
-      background:rgba(0,0,0,.5); display:flex; align-items:center; justify-content:center;
+      position:fixed; inset:0;
+      background:rgba(0,0,0,.5); display:flex; align-items:center; justify-content:center; z-index:1000;
     }
     #authBox {
-      background:#fff; border-radius:12px; padding:20px; max-width:360px; width:90%;
+      background:#fff; border-radius:12px; padding:20px; max-width:380px; width:90%;
+      box-shadow:0 10px 30px rgba(0,0,0,.2);
     }
-    label { display:block; margin:8px 0 4px; font-weight:600; }
-    input { width:100%; padding:8px; border-radius:8px; border:1px solid #ccc; }
-    button.authBtn { margin-top:10px; width:100%; }
-    .link { margin-top:12px; font-size:.9rem; text-align:center; color:#3a2f2f; cursor:pointer; }
+    #authBox h2 { margin:0 0 10px; color:var(--accent); }
+    label { display:block; margin:10px 0 4px; font-weight:600; }
+    input { width:100%; padding:10px; border-radius:8px; border:1px solid #ccc; }
+    button.authBtn { margin-top:12px; width:100%; background:var(--accent); color:#fff; border:none; border-radius:8px; padding:10px; cursor:pointer; }
+    .link { margin-top:12px; font-size:.92rem; text-align:center; color:var(--accent); cursor:pointer; }
+    .status { margin-top:8px; font-size:.9rem; text-align:center; color:var(--muted); }
+    .error { color:#b00020; }
+    .ok { color:#0a7f58; }
   </style>
 </head>
 <body>
@@ -50,43 +59,58 @@
   <!-- 投稿バー -->
   <div id="postBar" class="hidden">
     <form id="postForm">
-      <input id="postInput" type="text" placeholder="投稿内容…" />
+      <input id="postInput" type="text" maxlength="500" placeholder="投稿内容…（URLは自動でリンク化されます）" />
       <button type="submit">送信</button>
     </form>
   </div>
 
-  <!-- ログイン／登録モーダル -->
+  <!-- 認証モーダル（ログイン優先、登録はリンクから展開、再設定あり） -->
   <div id="authModal" class="hidden">
     <div id="authBox">
       <h2>ログイン</h2>
       <form id="loginForm">
         <label for="logEmail">メール</label>
-        <input id="logEmail" type="email" required />
+        <input id="logEmail" type="email" autocomplete="email" required />
         <label for="logPassword">パスワード</label>
-        <input id="logPassword" type="password" required />
+        <input id="logPassword" type="password" autocomplete="current-password" required />
         <button class="authBtn" type="submit">ログイン</button>
+        <div id="loginStatus" class="status"></div>
       </form>
+      <div class="link" id="forgotLink">パスワードをお忘れの方はこちら</div>
+      <div id="resetArea" class="hidden">
+        <label for="resetEmail">再設定用メールを送信</label>
+        <input id="resetEmail" type="email" placeholder="登録メールアドレス" />
+        <button class="authBtn" id="sendResetBtn" type="button">メールを送信</button>
+        <div id="resetStatus" class="status"></div>
+      </div>
       <div class="link" id="showRegister">まだ登録していない方はこちら</div>
       <form id="registerForm" class="hidden">
         <h2>新規登録</h2>
         <label for="regEmail">メール</label>
-        <input id="regEmail" type="email" required />
+        <input id="regEmail" type="email" autocomplete="email" required />
         <label for="regPassword">パスワード</label>
-        <input id="regPassword" type="password" required />
+        <input id="regPassword" type="password" autocomplete="new-password" required />
         <label for="regNickname">ニックネーム</label>
-        <input id="regNickname" type="text" required />
+        <input id="regNickname" type="text" maxlength="32" required />
         <button class="authBtn" type="submit">登録</button>
+        <div id="registerStatus" class="status"></div>
       </form>
     </div>
   </div>
 
   <script type="module">
+    // Firebase SDKs
     import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
-    import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword } 
-      from "https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js";
-    import { getFirestore, collection, addDoc, serverTimestamp, query, orderBy, getDocs, doc, setDoc, getDoc } 
-      from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
+    import {
+      getAuth, onAuthStateChanged, createUserWithEmailAndPassword,
+      signInWithEmailAndPassword, sendPasswordResetEmail
+    } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js";
+    import {
+      getFirestore, collection, addDoc, serverTimestamp, query,
+      orderBy, getDocs, doc, setDoc, getDoc, limit
+    } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
 
+    // Config
     const firebaseConfig = {
       apiKey: "AIzaSyDe-uSTjbvc_I51iB5d5MH8byG8ATQmRa0",
       authDomain: "block-surprise-community.firebaseapp.com",
@@ -100,94 +124,154 @@
     const auth = getAuth(app);
     const db = getFirestore(app);
 
+    // UI refs
     const postsDiv = document.getElementById("posts");
     const postToggle = document.getElementById("postToggle");
     const postBar = document.getElementById("postBar");
     const postForm = document.getElementById("postForm");
     const postInput = document.getElementById("postInput");
+
     const authModal = document.getElementById("authModal");
     const loginForm = document.getElementById("loginForm");
+    const loginStatus = document.getElementById("loginStatus");
     const registerForm = document.getElementById("registerForm");
+    const registerStatus = document.getElementById("registerStatus");
     const showRegister = document.getElementById("showRegister");
+    const forgotLink = document.getElementById("forgotLink");
+    const resetArea = document.getElementById("resetArea");
+    const resetEmail = document.getElementById("resetEmail");
+    const sendResetBtn = document.getElementById("sendResetBtn");
+    const resetStatus = document.getElementById("resetStatus");
 
+    // Helpers
+    const escapeHtml = (str) => String(str)
+      .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+      .replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+    // URLをリンク化（先にエスケープしてから、URL部分のみ <a> を差し込む）
     function linkify(text) {
+      const safe = escapeHtml(text);
       const urlRegex = /(https?:\/\/[^\s]+)/g;
-      return escapeHtml(text).replace(urlRegex, url => `<a href="${url}" target="_blank">${url}</a>`);
+      return safe.replace(urlRegex, (m) => `<a href="${m}" target="_blank" rel="noopener">${m}</a>`);
     }
-    function escapeHtml(str) {
-      return String(str).replace(/&/g,"&amp;").replace(/</g,"&lt;")
-        .replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
-    }
+    const show = (el) => el.classList.remove("hidden");
+    const hide = (el) => el.classList.add("hidden");
 
+    // 投稿一覧ロード（最初からどーん）
     async function loadPosts() {
       postsDiv.innerHTML = "";
-      const q = query(collection(db,"communityPosts"), orderBy("createdAt","desc"));
+      const q = query(collection(db,"communityPosts"), orderBy("createdAt","desc"), limit(50));
       const snap = await getDocs(q);
+      const fr = new DocumentFragment();
       snap.forEach(docu => {
         const d = docu.data();
-        const time = d.createdAt?.toDate?.().toLocaleString() || "";
-        postsDiv.innerHTML += `
-          <div class="post">
-            <div class="meta"><span class="nick">${escapeHtml(d.nickname||"匿名")}</span>・${time}</div>
-            <div class="text">${linkify(d.text||"")}</div>
-          </div>`;
+        const time = d.createdAt?.toDate?.() ? d.createdAt.toDate().toLocaleString() : "";
+        const card = document.createElement("div");
+        card.className = "post";
+        card.innerHTML = `
+          <div class="meta"><span class="nick">${escapeHtml(d.nickname||"匿名")}</span>・${escapeHtml(time)}</div>
+          <div class="text">${linkify(d.text||"")}</div>
+        `;
+        fr.appendChild(card);
       });
+      postsDiv.appendChild(fr);
     }
     loadPosts();
 
+    // 投稿ボタン→バー展開
     postToggle.addEventListener("click", () => {
       postBar.classList.toggle("hidden");
     });
 
+    // 投稿処理（未ログインならモーダル）
     postForm.addEventListener("submit", async (e) => {
       e.preventDefault();
       const user = auth.currentUser;
-      if (!user) { authModal.classList.remove("hidden"); return; }
+      if (!user) { show(authModal); return; }
       const text = postInput.value.trim();
       if (!text) return;
-      const udoc = await getDoc(doc(db,"users",user.uid));
-      const nickname = udoc.exists()? udoc.data().nickname : "匿名";
-      await addDoc(collection(db,"communityPosts"), {
-        userId:user.uid, nickname, text, createdAt:serverTimestamp()
-      });
-      postInput.value="";
-      loadPosts();
-    });
-
-    loginForm.addEventListener("submit", async (e)=>{
-      e.preventDefault();
-      const email = document.getElementById("logEmail").value;
-      const pass = document.getElementById("logPassword").value;
-      await signInWithEmailAndPassword(auth,email,pass);
-      authModal.classList.add("hidden");
-    });
-
-    registerForm.addEventListener("submit", async (e)=>{
-      e.preventDefault();
-      const email = document.getElementById("regEmail").value;
-      const pass = document.getElementById("regPassword").value;
-      const nick = document.getElementById("regNickname").value;
       try {
-        const cred = await createUserWithEmailAndPassword(auth,email,pass);
-        await setDoc(doc(db,"users",cred.user.uid),{
-          nickname:nick,
-          createdAt:serverTimestamp()
+        const udoc = await getDoc(doc(db,"users",user.uid));
+        const nickname = udoc.exists() ? (udoc.data().nickname || "匿名") : "匿名";
+        await addDoc(collection(db,"communityPosts"), {
+          userId:user.uid, nickname, text, createdAt:serverTimestamp()
         });
-        authModal.classList.add("hidden");
-      } catch(err) {
-        alert("登録エラー: "+err.message);
+        postInput.value="";
+        await loadPosts();
+      } catch (err) {
+        alert("投稿エラー: " + (err.code || err.message));
       }
     });
 
-    // 「まだ登録していない方はこちら」をクリックしたら登録フォームを表示
-    showRegister.addEventListener("click", ()=>{
-      registerForm.classList.remove("hidden");
-      showRegister.classList.add("hidden");
+    // ログインフォーム
+    loginForm.addEventListener("submit", async (e)=>{
+      e.preventDefault();
+      loginStatus.textContent = "ログイン中…";
+      const email = document.getElementById("logEmail").value.trim();
+      const pass = document.getElementById("logPassword").value;
+      try {
+        await signInWithEmailAndPassword(auth,email,pass);
+        loginStatus.textContent = "ログインしました。";
+        hide(authModal);
+      } catch (err) {
+        let msg = "ログインに失敗しました。";
+        if (err.code === "auth/user-not-found") msg = "このメールは登録されていません。";
+        else if (err.code === "auth/wrong-password") msg = "パスワードが違います。";
+        else if (err.code === "auth/invalid-email") msg = "メール形式が正しくありません。";
+        loginStatus.classList.add("error");
+        loginStatus.textContent = `${msg} (${err.code})`;
+      }
     });
 
-    // 認証状態が変わったらモーダルを閉じる
-    onAuthStateChanged(auth,(user)=>{
-      if(user){ authModal.classList.add("hidden"); }
+    // パスワード再設定
+    forgotLink.addEventListener("click", ()=>{
+      show(resetArea);
+    });
+    sendResetBtn.addEventListener("click", async ()=>{
+      resetStatus.textContent = "送信中…";
+      const email = (resetEmail.value || document.getElementById("logEmail").value || "").trim();
+      if (!email) { resetStatus.textContent = "メールアドレスを入力してください。"; return; }
+      try {
+        await sendPasswordResetEmail(auth, email);
+        resetStatus.classList.add("ok");
+        resetStatus.textContent = "再設定メールを送信しました。メールをご確認ください。";
+      } catch (err) {
+        resetStatus.classList.add("error");
+        resetStatus.textContent = `送信に失敗しました (${err.code})`;
+      }
+    });
+
+    // 登録フォーム表示リンク
+    showRegister.addEventListener("click", ()=>{
+      show(registerForm);
+      hide(showRegister);
+    });
+
+    // 新規登録
+    registerForm.addEventListener("submit", async (e)=>{
+      e.preventDefault();
+      registerStatus.textContent = "登録中…";
+      const email = document.getElementById("regEmail").value.trim();
+      const pass = document.getElementById("regPassword").value;
+      const nick = document.getElementById("regNickname").value.trim();
+      try {
+        const cred = await createUserWithEmailAndPassword(auth,email,pass);
+        await setDoc(doc(db,"users",cred.user.uid),{ nickname:nick, createdAt:serverTimestamp() });
+        registerStatus.classList.add("ok");
+        registerStatus.textContent = "登録完了。ログイン済みです。";
+        hide(authModal);
+      } catch (err) {
+        let msg = "登録に失敗しました。";
+        if (err.code === "auth/email-already-in-use") msg = "このメールはすでに登録されています。ログインしてください。";
+        else if (err.code === "auth/weak-password") msg = "パスワードが弱すぎます。より強いものを設定してください。";
+        else if (err.code === "auth/invalid-email") msg = "メール形式が正しくありません。";
+        registerStatus.classList.add("error");
+        registerStatus.textContent = `${msg} (${err.code})`;
+      }
+    });
+
+    // 認証状態監視（ログイン済みならモーダル閉じ）
+    onAuthStateChanged(auth, (user)=>{
+      if (user) hide(authModal);
     });
   </script>
 </body>
