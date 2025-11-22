@@ -7,7 +7,7 @@
   <style>
     body { font-family:"Noto Serif JP",serif; background:#f7f3eb; margin:0; }
     header { display:flex; justify-content:space-between; align-items:center;
-      padding:12px 20px; background:#fff; border-bottom:1px solid #ddd; position:sticky; top:0; z-index:100; }
+      padding:12px 20px; background:#fff; border-bottom:1px solid #ddd; position:sticky; top:0; }
     header h1 { margin:0; color:#3a2f2f; font-size:1.2rem; }
     #logoutBtn { background:#3a2f2f; color:#fff; border:none; border-radius:6px; padding:8px 14px; cursor:pointer; font-weight:600; }
     main { max-width:860px; margin:0 auto; padding:20px; }
@@ -21,18 +21,13 @@
     #postForm { display:flex; gap:8px; }
     #postInput { flex:1; padding:10px; border-radius:8px; border:1px solid #ccc; }
     #postForm button { background:#3a2f2f; color:#fff; border:none; border-radius:8px; padding:10px 16px; cursor:pointer; }
-
-    /* Auth modal */
-    #authModal { position:fixed; inset:0; background:rgba(0,0,0,.5);
-      display:flex; align-items:center; justify-content:center; z-index:1000; }
-    #authBox { background:#fff; border-radius:12px; padding:20px; max-width:420px; width:90%;
-      box-shadow:0 10px 30px rgba(0,0,0,.2); }
+    #authModal { position:fixed; inset:0; background:rgba(0,0,0,.5); display:flex; align-items:center; justify-content:center; z-index:1000; }
+    #authBox { background:#fff; border-radius:12px; padding:20px; max-width:420px; width:90%; box-shadow:0 10px 30px rgba(0,0,0,.2); }
     #authBox h2 { margin:0 0 10px; color:#3a2f2f; }
     label { display:block; margin:10px 0 4px; font-weight:600; }
     input { width:100%; padding:10px; border-radius:8px; border:1px solid #ccc; }
     button.authBtn { margin-top:12px; width:100%; background:#3a2f2f; color:#fff; border:none; border-radius:8px; padding:10px; cursor:pointer; }
-    .link { margin-top:12px; font-size:.92rem; text-align:center; color:#3a2f2f; cursor:pointer; }
-    .status { margin-top:8px; font-size:.9rem; text-align:center; color:#7a6f6f; }
+    .status { margin-top:8px; font-size:.9rem; text-align:center; }
     .error { color:#b00020; }
     .ok { color:#0a7f58; }
     #usernameStatus { margin-left:8px; font-weight:bold; }
@@ -52,7 +47,7 @@
 
   <div id="postBar" class="hidden">
     <form id="postForm">
-      <input id="postInput" type="text" maxlength="500" placeholder="投稿内容…（URLは自動でリンク化されます）" />
+      <input id="postInput" type="text" maxlength="500" placeholder="投稿内容…" />
       <button type="submit">送信</button>
     </form>
   </div>
@@ -88,13 +83,9 @@
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
-    import { getAuth, onAuthStateChanged, signInAnonymously, signOut } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js";
-    import {
-      getFirestore, collection, addDoc, serverTimestamp, query,
-      orderBy, getDocs, doc, setDoc, getDoc, where, limit
-    } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
+    import { getAuth, signInAnonymously, signOut } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js";
+    import { getFirestore, collection, addDoc, serverTimestamp, query, orderBy, getDocs, doc, setDoc, getDoc, where, limit } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
 
-    // Firebase設定（あなたのプロジェクトに置き換えてください）
     const firebaseConfig = {
       apiKey: "AIzaSyDe-uSTjbvc_I51iB5d5MH8byG8ATQmRa0",
       authDomain: "block-surprise-community.firebaseapp.com",
@@ -108,53 +99,40 @@
     const auth = getAuth(app);
     const db = getFirestore(app);
 
-    // UI参照
     const postsDiv = document.getElementById("posts");
-    const postToggle = document.getElementById("postToggle");
-    const postBar = document.getElementById("postBar");
     const postForm = document.getElementById("postForm");
     const postInput = document.getElementById("postInput");
+    const postToggle = document.getElementById("postToggle");
+    const postBar = document.getElementById("postBar");
     const logoutBtn = document.getElementById("logoutBtn");
 
     const authModal = document.getElementById("authModal");
     const loginForm = document.getElementById("loginForm");
     const loginStatus = document.getElementById("loginStatus");
-
-    const showRegister = document.getElementById("showRegister");
     const registerForm = document.getElementById("registerForm");
     const registerStatus = document.getElementById("registerStatus");
     const regUsername = document.getElementById("regUsername");
     const usernameStatus = document.getElementById("usernameStatus");
 
-    // 安全なテキスト化＆リンク化
-    const escapeHtml = (str) => String(str)
-      .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
-      .replace(/"/g,"&quot;").replace(/'/g,"&#39;");
-    function linkify(text) {
-      const safe = escapeHtml(text);
-      const urlRegex = /(https?:\/\/[^\s]+)/g;
-      return safe.replace(urlRegex, (m) => `<a href="${m}" target="_blank" rel="noopener">${m}</a>`);
-    }
-
-    // パスワードハッシュ（簡易：SHA-256）
+    // パスワードハッシュ（簡易）
     async function hashPassword(pw) {
       const enc = new TextEncoder().encode(pw);
       const buf = await crypto.subtle.digest("SHA-256", enc);
-      return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
+      return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,"0")).join("");
     }
 
-    // 現在の「ログイン中プロフィールUID」を保持（anonymousとは別管理）
+    // セッション管理
     const SESSION_KEY = "profileUid";
-    function getProfileUid() { return localStorage.getItem(SESSION_KEY) || null; }
-    function setProfileUid(uid) { localStorage.setItem(SESSION_KEY, uid); }
-    function clearProfileUid() { localStorage.removeItem(SESSION_KEY); }
+    function getProfileUid(){ return localStorage.getItem(SESSION_KEY); }
+    function setProfileUid(uid){ localStorage.setItem(SESSION_KEY, uid); }
+    function clearProfileUid(){ localStorage.removeItem(SESSION_KEY); }
 
     // 投稿読み込み
-    async function loadPosts() {
-      postsDiv.innerHTML = "";
-      const qy = query(collection(db,"communityPosts"), orderBy("createdAt","desc"), limit(50));
-      const snap = await getDocs(qy);
-      snap.forEach(docu => {
+    async function loadPosts(){
+      postsDiv.innerHTML="";
+      const q = query(collection(db,"communityPosts"), orderBy("createdAt","desc"), limit(50));
+      const snap = await getDocs(q);
+      snap.forEach(docu=>{
         const d = docu.data();
         const time = d.createdAt?.toDate?.() ? d.createdAt.toDate().toLocaleString() : "";
         postsDiv.innerHTML += `
@@ -164,29 +142,32 @@
           </div>`;
       });
     }
-    loadPosts();
 
-    // 投稿トグル
+    // 投稿バーの表示切り替え
     postToggle.addEventListener("click", () => {
       postBar.classList.toggle("hidden");
     });
 
-    // 投稿
+    // 投稿処理
     postForm.addEventListener("submit", async (e) => {
       e.preventDefault();
-      // まずAuthは匿名で確保（ルール用）
+      console.log("投稿イベント発火"); // デバッグ用
+
+      // Firestoreルール用に匿名ログインを確保
       if (!auth.currentUser) {
         await signInAnonymously(auth);
       }
-      // プロフィールログイン確認
+
       const profUid = getProfileUid();
       if (!profUid) {
         authModal.classList.remove("hidden");
         loginStatus.textContent = "ログインが必要です。";
         return;
       }
+
       const text = postInput.value.trim();
       if (!text) return;
+
       try {
         const udoc = await getDoc(doc(db,"users", profUid));
         const nickname = udoc.exists()? (udoc.data().nickname || "匿名") : "匿名";
@@ -223,7 +204,7 @@
       }
     });
 
-    // 新規登録（匿名UID発行＋プロフィール作成）
+    // 新規登録処理
     registerForm.addEventListener("submit", async (e) => {
       e.preventDefault();
       registerStatus.textContent = "登録中…";
@@ -238,7 +219,7 @@
         return;
       }
 
-      // 再チェック：一意性
+      // 重複チェック
       const dupQ = query(collection(db, "users"), where("username", "==", username));
       const dupSnap = await getDocs(dupQ);
       if (!dupSnap.empty) {
@@ -248,14 +229,11 @@
       }
 
       try {
-        // 匿名ログイン（ルール用の認証）
         if (!auth.currentUser) {
           await signInAnonymously(auth);
         }
         const passwordHash = await hashPassword(password);
 
-        // プロフィールUIDを新規発行（users/{uid} を任意IDにしたい場合は addDoc でもOK）
-        // ここでは匿名AuthのUIDを採用せず、プロフィール用に独立IDを作るために addDoc を使用
         const profileDocRef = await addDoc(collection(db, "users"), {
           username,
           nickname,
@@ -263,7 +241,7 @@
           createdAt: serverTimestamp()
         });
 
-        setProfileUid(profileDocRef.id); // セッションへ格納
+        setProfileUid(profileDocRef.id);
         registerStatus.classList.add("ok");
         registerStatus.textContent = "登録完了。ログイン済みです。";
         authModal.classList.add("hidden");
@@ -274,7 +252,7 @@
       }
     });
 
-    // ログイン（ユーザーネーム＋パスワード）
+    // ログイン処理
     loginForm.addEventListener("submit", async (e) => {
       e.preventDefault();
       loginStatus.textContent = "認証中…";
@@ -288,7 +266,6 @@
       }
 
       try {
-        // ルール用に匿名サインインを確保
         if (!auth.currentUser) {
           await signInAnonymously(auth);
         }
@@ -324,16 +301,8 @@
     logoutBtn.addEventListener("click", async () => {
       clearProfileUid();
       logoutBtn.classList.add("hidden");
-      // 匿名認証は維持しても良いが、完全に切るなら signOut()
       await signOut(auth);
       alert("ログアウトしました。");
-    });
-
-    // 投稿ボタンクリック時に未ログインならモーダル表示
-    postToggle.addEventListener("click", () => {
-      const profUid = getProfileUid();
-      if (!profUid) { authModal.classList.remove("hidden"); }
-      postBar.classList.toggle("hidden");
     });
 
     // 初期状態でセッションがあればログアウトボタン表示
