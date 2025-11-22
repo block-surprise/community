@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ブロックサプライズ コミュニティ</title>
+  <style>
+    :root {
+      --bg1: #f7f3eb; --ink: #2f2a26; --muted: #7a6f6f; --accent: #3a2f2f; --card: #ffffff;
+    }
+    body {
+      background: var(--bg1); color: var(--ink);
+      font-family: "Noto Serif JP", serif; line-height: 1.8;
+      margin: 0; padding: 24px 16px;
+    }
+    main { max-width: 860px; margin: 0 auto; }
+    h1 { margin: 0 0 8px; color: var(--accent); font-size: 1.8rem; letter-spacing: .02em; }
+    p.lead { margin: 0 0 20px; color: var(--muted); }
+    .card {
+      background: var(--card); border-radius: 14px; box-shadow: 0 6px 18px rgba(0,0,0,.08);
+      padding: 16px; margin: 14px 0;
+    }
+    .row { display: grid; grid-template-columns: 1fr; gap: 14px; }
+    @media (min-width: 820px) { .row { grid-template-columns: 1fr 1fr; } }
+    label { display: block; font-weight: 600; margin: 8px 0 6px; color: var(--accent); }
+    input, textarea, button {
+      font-family: inherit; font-size: 1rem;
+    }
+    input, textarea {
+      width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid #ddd; background: #fff;
+    }
+    textarea { min-height: 100px; resize: vertical; }
+    button {
+      background: var(--accent); color: #fff; border: none; border-radius: 10px; padding: 10px 16px; font-weight: 600;
+    }
+    .muted { color: var(--muted); font-size: .92rem; }
+    .flex { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .right { text-align: right; }
+    .post {
+      background: var(--card); border: 1px solid #eee; border-radius: 12px; padding: 12px; margin: 10px 0;
+    }
+    .post .meta { font-size: .88rem; color: var(--muted); margin-bottom: 6px; }
+    .post .nick { font-weight: 700; color: var(--accent); }
+    .hidden { display: none; }
+    .error { color: #b00020; font-weight: 600; }
+    .ok { color: #0b7; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>コミュニティ</h1>
+    <p class="lead">アカウント登録時にニックネームを設定して、投稿できます。</p>
+
+    <div class="row">
+      <!-- 認証カード -->
+      <section class="card" id="authCard">
+        <h2 style="margin:0 0 10px;">アカウント</h2>
+
+        <div id="authSignedOut">
+          <div class="flex">
+            <button id="switchToRegister">新規登録</button>
+            <button id="switchToLogin" style="background:#6b5f57;">ログイン</button>
+          </div>
+
+          <!-- 新規登録フォーム -->
+          <form id="registerForm" style="margin-top:12px;">
+            <label for="regEmail">メールアドレス</label>
+            <input id="regEmail" type="email" autocomplete="email" required />
+            <label for="regPassword">パスワード</label>
+            <input id="regPassword" type="password" autocomplete="new-password" required />
+            <label for="regNickname">ニックネーム</label>
+            <input id="regNickname" type="text" maxlength="32" placeholder="例：ブロサプ好き" required />
+            <div class="flex" style="margin-top:10px;">
+              <button type="submit">登録して参加する</button>
+              <span id="regStatus" class="muted"></span>
+            </div>
+          </form>
+
+          <!-- ログインフォーム -->
+          <form id="loginForm" class="hidden" style="margin-top:12px;">
+            <label for="logEmail">メールアドレス</label>
+            <input id="logEmail" type="email" autocomplete="email" required />
+            <label for="logPassword">パスワード</label>
+            <input id="logPassword" type="password" autocomplete="current-password" required />
+            <div class="flex" style="margin-top:10px;">
+              <button type="submit">ログイン</button>
+              <span id="logStatus" class="muted"></span>
+            </div>
+          </form>
+        </div>
+
+        <div id="authSignedIn" class="hidden">
+          <p class="muted">こんにちは、<span id="nickDisplay"></span> さん</p>
+          <div class="flex">
+            <button id="signOutBtn" style="background:#6b5f57;">サインアウト</button>
+            <button id="editNickBtn">ニックネーム変更</button>
+          </div>
+          <form id="editNickForm" class="hidden" style="margin-top:12px;">
+            <label for="editNickname">新しいニックネーム</label>
+            <input id="editNickname" type="text" maxlength="32" required />
+            <div class="flex" style="margin-top:10px;">
+              <button type="submit">保存</button>
+              <span id="editNickStatus" class="muted"></span>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <!-- 投稿カード -->
+      <section class="card">
+        <h2 style="margin:0 0 10px;">投稿</h2>
+        <form id="postForm">
+          <label for="postText">本文</label>
+          <textarea id="postText" placeholder="コミュニティに伝えたいこと…" required></textarea>
+          <div class="flex" style="margin-top:10px;">
+            <button type="submit">投稿する</button>
+            <span id="postStatus" class="muted"></span>
+          </div>
+        </form>
+        <p class="muted" style="margin-top:8px;">投稿にはログインが必要です。内容は公開されます。</p>
+      </section>
+    </div>
+
+    <!-- 投稿一覧 -->
+    <section class="card">
+      <h2 style="margin:0 0 10px;">最新の投稿</h2>
+      <div id="posts"></div>
+    </section>
+  </main>
+
+  <script type="module">
+    // Firebase SDKs
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
+    import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-analytics.js";
+    import {
+      getAuth, onAuthStateChanged, createUserWithEmailAndPassword,
+      signInWithEmailAndPassword, signOut
+    } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js";
+    import {
+      getFirestore, doc, setDoc, getDoc, serverTimestamp,
+      addDoc, collection, query, orderBy, limit, getDocs
+    } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
+
+    // Config (提供された値)
+    const firebaseConfig = {
+      apiKey: "AIzaSyDe-uSTjbvc_I51iB5d5MH8byG8ATQmRa0",
+      authDomain: "block-surprise-community.firebaseapp.com",
+      projectId: "block-surprise-community",
+      storageBucket: "block-surprise-community.firebasestorage.app",
+      messagingSenderId: "734221997168",
+      appId: "1:734221997168:web:3ea9659c4b140704d610b5",
+      measurementId: "G-V5G9WVG3Z0"
+    };
+
+    // Init
+    const app = initializeApp(firebaseConfig);
+    getAnalytics(app); // 任意
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    // UI refs
+    const authSignedOut = document.getElementById("authSignedOut");
+    const authSignedIn = document.getElementById("authSignedIn");
+    const switchToRegister = document.getElementById("switchToRegister");
+    const switchToLogin = document.getElementById("switchToLogin");
+    const registerForm = document.getElementById("registerForm");
+    const loginForm = document.getElementById("loginForm");
+    const regStatus = document.getElementById("regStatus");
+    const logStatus = document.getElementById("logStatus");
+    const nickDisplay = document.getElementById("nickDisplay");
+    const signOutBtn = document.getElementById("signOutBtn");
+    const editNickBtn = document.getElementById("editNickBtn");
+    const editNickForm = document.getElementById("editNickForm");
+    const editNickname = document.getElementById("editNickname");
+
+    const postForm = document.getElementById("postForm");
+    const postText = document.getElementById("postText");
+    const postStatus = document.getElementById("postStatus");
+    const postsDiv = document.getElementById("posts");
+
+    // Helpers
+    const show = (el) => el.classList.remove("hidden");
+    const hide = (el) => el.classList.add("hidden");
+    const escapeHtml = (str) => String(str)
+      .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+      .replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+
+    function setMode(mode) {
+      if (mode === "register") { show(registerForm); hide(loginForm); regStatus.textContent=""; }
+      if (mode === "login") { show(loginForm); hide(registerForm); logStatus.textContent=""; }
+    }
+    switchToRegister.addEventListener("click", () => setMode("register"));
+    switchToLogin.addEventListener("click", () => setMode("login"));
+
+    // Auth state
+    onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        hide(authSignedOut); show(authSignedIn);
+        const udoc = await getDoc(doc(db, "users", user.uid));
+        const nickname = udoc.exists() ? (udoc.data().nickname || "無名") : "無名";
+        nickDisplay.textContent = nickname;
+        hide(editNickForm);
+      } else {
+        show(authSignedOut); hide(authSignedIn);
+      }
+    });
+
+    // Register
+    registerForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      regStatus.textContent = "登録中…";
+      const email = document.getElementById("regEmail").value.trim();
+      const password = document.getElementById("regPassword").value;
+      const nickname = document.getElementById("regNickname").value.trim();
+
+      try {
+        const cred = await createUserWithEmailAndPassword(auth, email, password);
+        await setDoc(doc(db, "users", cred.user.uid), {
+          nickname, createdAt: serverTimestamp()
+        });
+        regStatus.textContent = "登録完了。ようこそ！";
+        setMode("login"); // そのままログインフォームに誘導、または自動ログインでもOK
+      } catch (err) {
+        regStatus.textContent = `エラー: ${err.code || err.message}`;
+      }
+    });
+
+    // Login
+    loginForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      logStatus.textContent = "ログイン中…";
+      const email = document.getElementById("logEmail").value.trim();
+      const password = document.getElementById("logPassword").value;
+      try {
+        await signInWithEmailAndPassword(auth, email, password);
+        logStatus.textContent = "ログインしました。";
+      } catch (err) {
+        logStatus.textContent = `エラー: ${err.code || err.message}`;
+      }
+    });
+
+    // Sign out
+    signOutBtn.addEventListener("click", async () => {
+      await signOut(auth);
+    });
+
+    // Edit nickname
+    editNickBtn.addEventListener("click", () => {
+      editNickname.value = nickDisplay.textContent || "";
+      show(editNickForm);
+    });
+    editNickForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const user = auth.currentUser;
+      if (!user) return;
+      const newNick = editNickname.value.trim();
+      if (!newNick) return;
+      document.getElementById("editNickStatus").textContent = "保存中…";
+      try {
+        await setDoc(doc(db, "users", user.uid), { nickname: newNick, updatedAt: serverTimestamp() }, { merge: true });
+        nickDisplay.textContent = newNick;
+        document.getElementById("editNickStatus").textContent = "保存しました。";
+        hide(editNickForm);
+      } catch (err) {
+        document.getElementById("editNickStatus").textContent = `エラー: ${err.code || err.message}`;
+      }
+    });
+
+    // Post
+    postForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const user = auth.currentUser;
+      if (!user) {
+        postStatus.textContent = "投稿にはログインが必要です。";
+        return;
+      }
+      const text = postText.value.trim();
+      if (!text) return;
+      postStatus.textContent = "投稿中…";
+      try {
+        const udoc = await getDoc(doc(db, "users", user.uid));
+        const nickname = udoc.exists() ? (udoc.data().nickname || "無名") : "無名";
+        await addDoc(collection(db, "communityPosts"), {
+          userId: user.uid,
+          nickname,
+          text,
+          createdAt: serverTimestamp()
+        });
+        postText.value = "";
+        postStatus.textContent = "投稿しました。";
+        await loadPosts();
+      } catch (err) {
+        postStatus.textContent = `エラー: ${err.code || err.message}`;
+      }
+    });
+
+    // Load posts
+    async function loadPosts() {
+      postsDiv.innerHTML = "";
+      const q = query(collection(db, "communityPosts"), orderBy("createdAt", "desc"), limit(50));
+      const snap = await getDocs(q);
+      const fr = new DocumentFragment();
+      snap.forEach((docu) => {
+        const d = docu.data();
+        const div = document.createElement("div");
+        div.className = "post";
+        const time = d.createdAt?.toDate?.() ? d.createdAt.toDate().toLocaleString() : "";
+        div.innerHTML = `
+          <div class="meta"><span class="nick">${escapeHtml(d.nickname || "無名")}</span>・${escapeHtml(time)}</div>
+          <div class="text">${escapeHtml(d.text || "")}</div>
+        `;
+        fr.appendChild(div);
+      });
+      postsDiv.appendChild(fr);
+    }
+    loadPosts();
+  </script>
+</body>
+</html>
