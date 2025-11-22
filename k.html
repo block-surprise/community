@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ブロックサプライズ コミュニティ</title>
+  <style>
+    body { font-family:"Noto Serif JP",serif; background:#f7f3eb; margin:0; }
+    header { display:flex; justify-content:space-between; align-items:center;
+      padding:12px 20px; background:#fff; border-bottom:1px solid #ddd; position:sticky; top:0; }
+    header h1 { margin:0; color:#3a2f2f; font-size:1.2rem; }
+    #logoutBtn { background:#3a2f2f; color:#fff; border:none; border-radius:6px;
+      padding:8px 14px; cursor:pointer; font-weight:600; }
+    main { max-width:860px; margin:0 auto; padding:20px; }
+    .hidden { display:none !important; }
+    label { display:block; margin:10px 0 4px; font-weight:600; }
+    input { width:100%; padding:10px; border-radius:8px; border:1px solid #ccc; }
+    .status { margin-top:8px; font-size:.9rem; text-align:center; }
+    .error { color:#b00020; }
+    .ok { color:#0a7f58; }
+    #usernameStatus { margin-left:8px; font-weight:bold; }
+    button.authBtn { margin-top:12px; width:100%; background:#3a2f2f; color:#fff;
+      border:none; border-radius:8px; padding:10px; cursor:pointer; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>ブロックサプライズ コミュニティ</h1>
+    <button id="logoutBtn" class="hidden">ログアウト</button>
+  </header>
+
+  <main>
+    <h2>新規登録</h2>
+    <form id="registerForm">
+      <label for="regUsername">ユーザーネーム</label>
+      <input id="regUsername" type="text" maxlength="32" required />
+      <span id="usernameStatus"></span>
+
+      <label for="regNickname">ニックネーム</label>
+      <input id="regNickname" type="text" maxlength="32" required />
+
+      <label for="regEmail">メール</label>
+      <input id="regEmail" type="email" required />
+
+      <label for="regPassword">パスワード</label>
+      <input id="regPassword" type="password" required />
+
+      <button class="authBtn" type="submit">登録</button>
+      <div id="registerStatus" class="status"></div>
+    </form>
+  </main>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
+    import {
+      getAuth, signInAnonymously, EmailAuthProvider, linkWithCredential,
+      signOut
+    } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js";
+    import {
+      getFirestore, doc, setDoc, getDocs, query, where, collection, serverTimestamp
+    } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
+
+    // Firebase設定
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_PROJECT.firebaseapp.com",
+      projectId: "YOUR_PROJECT_ID",
+    };
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    const regUsername = document.getElementById("regUsername");
+    const usernameStatus = document.getElementById("usernameStatus");
+    const registerForm = document.getElementById("registerForm");
+    const registerStatus = document.getElementById("registerStatus");
+
+    // ユーザーネーム重複チェック
+    regUsername.addEventListener("input", async () => {
+      const uname = regUsername.value.trim();
+      if (!uname) { usernameStatus.textContent = ""; return; }
+      const q = query(collection(db, "users"), where("username", "==", uname));
+      const snap = await getDocs(q);
+      if (snap.empty) {
+        usernameStatus.textContent = "✔️"; usernameStatus.style.color = "green";
+      } else {
+        usernameStatus.textContent = "✖️"; usernameStatus.style.color = "red";
+      }
+    });
+
+    // 登録処理
+    registerForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      registerStatus.textContent = "登録中…";
+
+      const username = regUsername.value.trim();
+      const nickname = document.getElementById("regNickname").value.trim();
+      const email = document.getElementById("regEmail").value.trim();
+      const password = document.getElementById("regPassword").value;
+
+      try {
+        // 匿名ログイン
+        const anonCred = await signInAnonymously(auth);
+
+        // 匿名ユーザーをメール＋パスワードにリンク
+        const credential = EmailAuthProvider.credential(email, password);
+        const userCred = await linkWithCredential(anonCred.user, credential);
+
+        // Firestoreにユーザー情報保存
+        await setDoc(doc(db, "users", userCred.user.uid), {
+          uid: userCred.user.uid,
+          username,
+          nickname,
+          email,
+          createdAt: serverTimestamp(),
+          isAnonymous: false
+        });
+
+        registerStatus.classList.add("ok");
+        registerStatus.textContent = "登録完了！";
+      } catch (err) {
+        registerStatus.classList.add("error");
+        registerStatus.textContent = `登録失敗: ${err.code}`;
+      }
+    });
+  </script>
+</body>
+</html>
