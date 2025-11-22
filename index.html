@@ -255,7 +255,9 @@
 
     // 認証状態監視
     onAuthStateChanged(auth, (user)=>{
-      if (user) authModal.classList.add("hidden");
+      if (user) {
+        authModal.classList.add("hidden"); // 状態変化でも閉じる
+      }
     });
   </script>
 </body>
