@@ -12,7 +12,7 @@
             padding:12px; margin:12px 0; }
     .meta { font-size:.9rem; color:#777; margin-bottom:6px; }
     .nick { font-weight:bold; color:#3a2f2f; }
-    .hidden { display:none; }
+    .hidden { display:none !important; } /* ← 強制的に非表示 */
     #postToggle {
       position:fixed; right:20px; bottom:20px;
       background:#3a2f2f; color:#fff; border:none; border-radius:24px;
@@ -142,9 +142,13 @@
       return safe.replace(urlRegex, (m) => `<a href="${m}" target="_blank" rel="noopener">${m}</a>`);
     }
 
-    async function loadPosts() {
-      postsDiv.innerHTML = "";
-      const q = query(collection(db,"communityPosts"), orderBy("createdAt","desc"), limit(50));
+async function loadPosts() {
+  postsDiv.innerHTML = "";
+  const q = query(
+    collection(db,"communityPosts"),
+    orderBy("createdAt","desc"),
+    limit(50)
+  );
       const snap = await getDocs(q);
       snap.forEach(docu => {
         const d = docu.data();
