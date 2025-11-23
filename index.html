@@ -21,9 +21,6 @@
     #postForm { display:flex; gap:8px; }
     #postInput { flex:1; padding:10px; border-radius:8px; border:1px solid #ccc; }
     #postForm button { background:#3a2f2f; color:#fff; border:none; border-radius:8px; padding:10px 16px; cursor:pointer; }
-    #authForm { margin:20px; padding:12px; background:#fff; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,.08); }
-    #authForm input { margin:6px 0; padding:8px; width:100%; }
-    #authForm button { margin-top:8px; padding:10px; background:#3a2f2f; color:#fff; border:none; border-radius:6px; cursor:pointer; }
   </style>
 </head>
 <body>
@@ -33,15 +30,6 @@
   </header>
 
   <main>
-    <!-- ログイン／登録フォーム -->
-    <form id="authForm">
-      <h2>ログイン / 登録</h2>
-      <input id="email" type="email" placeholder="メールアドレス" required />
-      <input id="password" type="password" placeholder="パスワード" required />
-      <button type="submit">ログイン / 登録</button>
-    </form>
-
-    <!-- 投稿一覧 -->
     <div id="posts"></div>
   </main>
 
@@ -56,8 +44,8 @@
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
-    import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js";
-    import { getFirestore, collection, addDoc, serverTimestamp, query, orderBy, getDocs, doc, getDoc, setDoc, limit } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
+    import { getAuth, signInAnonymously, signOut } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js";
+    import { getFirestore, collection, addDoc, serverTimestamp, query, orderBy, getDocs, doc, getDoc, limit } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyDe-uSTjbvc_I51iB5d5MH8byG8ATQmRa0",
@@ -72,7 +60,7 @@
     const auth = getAuth(app);
     const db = getFirestore(app);
 
-    // NGワード判定
+    // NGワード判定（Firestoreから取得）
     async function loadNgWords() {
       const snap = await getDocs(collection(db, "ngWords"));
       return snap.docs.map(doc => doc.data().word);
@@ -91,7 +79,7 @@
       snap.forEach(docu=>{
         const d = docu.data();
         const time = d.createdAt?.toDate?.() ? d.createdAt.toDate().toLocaleString() : "";
-        const isMine = auth.currentUser && auth.currentUser.uid === d.authUid;
+        const isMine = localStorage.getItem("profileUid") === d.userId;
         if (d.hidden && !isMine) return; // 他人には非表示
         postsDiv.innerHTML += `
           <div class="post">
@@ -100,16 +88,17 @@
           </div>`;
       });
     }
+    loadPosts();
 
     // 投稿処理
     postForm.addEventListener("submit", async (e) => {
       e.preventDefault();
-      if (!auth.currentUser) return alert("ログインしてください");
+      if (!auth.currentUser) await signInAnonymously(auth);
 
       const text = postInput.value.trim();
       if (!text) return;
 
-      const profUid = auth.currentUser.uid;
+      const profUid = localStorage.getItem("profileUid") || auth.currentUser.uid;
       const udoc = await getDoc(doc(db,"users", profUid));
       const nickname = udoc.exists()? (udoc.data().nickname || "匿名") : "匿名";
 
@@ -133,33 +122,12 @@
       postBar.classList.toggle("hidden");
     });
 
-    // ログイン／登録処理
-    authForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const email = document.getElementById("email").value;
-      const password = document.getElementById("password").value;
-      try {
-        let userCred;
-        try {
-          userCred = await signInWithEmailAndPassword(auth, email, password);
-        } catch {
-          userCred = await createUserWithEmailAndPassword(auth, email, password);
-          await setDoc(doc(db,"users", userCred.user.uid), { email, nickname:"匿名" });
-        }
-        logoutBtn.classList.remove("hidden");
-        authForm.classList.add("hidden");
-        loadPosts();
-      } catch(err) {
-        alert("ログイン/登録エラー: " + err.message);
-      }
-    });
-
     // ログアウト処理
     logoutBtn.addEventListener("click", async () => {
-      await signOut(auth);
+      localStorage.removeItem("profileUid");
       logoutBtn.classList.add("hidden");
-      authForm.classList.remove("hidden");
-      document.getElementById("posts").innerHTML="";
+      await signOut(auth);
+      alert("ログアウトしました");
     });
   </script>
 </body>
