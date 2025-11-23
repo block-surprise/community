@@ -109,6 +109,31 @@
   const auth = getAuth(app);
   const db = getFirestore(app);
 
+  // 投稿関連
+const postForm   = document.getElementById("postForm");
+const postInput  = document.getElementById("postInput");
+const postBar    = document.getElementById("postBar");
+const postToggle = document.getElementById("postToggle"); // ← HTMLに追加必要
+
+// 認証関連
+const authModal      = document.getElementById("authModal");
+const loginForm      = document.getElementById("loginForm");
+const logUsername    = document.getElementById("logUsername");
+const logPassword    = document.getElementById("logPassword");
+const loginStatus    = document.getElementById("loginStatus");
+
+const showRegister   = document.getElementById("showRegister");
+const registerForm   = document.getElementById("registerForm");
+const regUsername    = document.getElementById("regUsername");
+const regNickname    = document.getElementById("regNickname");
+const regPassword    = document.getElementById("regPassword");
+const usernameStatus = document.getElementById("usernameStatus");
+const registerStatus = document.getElementById("registerStatus");
+
+// ログアウト関連
+const logoutBtn = document.getElementById("logoutBtn");
+const title     = document.getElementById("title");
+
   // 🔎 NGワード判定（仮）
   async function containsNgWord(text){ return false; }
 
