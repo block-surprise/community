@@ -300,33 +300,42 @@
       loginStatus.textContent = `ログイン失敗: ${err.code || err.message}`;
     }
   });
+// 🔒 隠しログアウトUI
+let pressTimer;
+const title = document.getElementById("title");
+const logoutBtn = document.getElementById("logoutBtn");
 
-  // 🔒 隠しログアウトUI
-  let pressTimer;
-  const title = document.getElementById("title");
-  const logoutBtn = document.getElementById("logoutBtn");
+// 3秒長押しでログアウトボタンを表示
+title.addEventListener("mousedown", () => {
+  pressTimer = setTimeout(() => {
+    logoutBtn.classList.remove("hidden");
+  }, 3000);
+});
+title.addEventListener("mouseup", () => {
+  clearTimeout(pressTimer);
+});
 
-  title.addEventListener("mousedown", () => {
-    pressTimer = setTimeout(() => {
-      logoutBtn.classList.remove("hidden");
-    }, 3000);
-  });
-  title.addEventListener("mouseup", () => {
-    clearTimeout(pressTimer);
-  });
-
-  logoutBtn.addEventListener("click", async () => {
-    clearProfileUid();
-    logoutBtn.classList.add("hidden");
-    await signOut(auth);
-    document.getElementById("posts").innerHTML = "";
-    alert("ログアウトしました");
-  });
-
-  // ページ読み込み時にセッションが残っていたらログアウトボタンを表示
-  if (getProfileUid()) {
+// Ctrl + Shift + L のショートカットでも表示
+document.addEventListener("keydown", (e) => {
+  if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "l") {
     logoutBtn.classList.remove("hidden");
   }
+});
+
+// ログアウト処理
+logoutBtn.addEventListener("click", async () => {
+  clearProfileUid();
+  logoutBtn.classList.add("hidden");
+  await signOut(auth);
+  document.getElementById("posts").innerHTML = "";
+  alert("ログアウトしました");
+});
+
+// ページ読み込み時にセッションが残っていたらログアウトボタンを表示
+if (getProfileUid()) {
+  logoutBtn.classList.remove("hidden");
+}
+
 </script>
 </body>
 </html>
