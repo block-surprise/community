@@ -99,6 +99,31 @@
     const auth = getAuth(app);
     const db = getFirestore(app);
 
+      import { signOut } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js";
+
+  let pressTimer;
+  const title = document.getElementById("title");
+  const logoutBtn = document.getElementById("logoutBtn");
+
+  // タイトルを長押しするとログアウトボタンが出る
+  title.addEventListener("mousedown", () => {
+    pressTimer = setTimeout(() => {
+      logoutBtn.classList.remove("hidden");
+    }, 3000); // 3秒長押しで表示
+  });
+  title.addEventListener("mouseup", () => {
+    clearTimeout(pressTimer);
+  });
+
+  // ログアウト処理
+  logoutBtn.addEventListener("click", async () => {
+    await signOut(auth);
+    clearProfileUid(); // localStorageのUIDも削除
+    logoutBtn.classList.add("hidden");
+    document.getElementById("posts").innerHTML = "";
+    alert("ログアウトしました");
+  });
+
     // ユーティリティ関数
     function escapeHtml(str){
       return String(str).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
