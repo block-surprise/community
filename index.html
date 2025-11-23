@@ -84,7 +84,7 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
     import { getAuth, signInAnonymously, signOut } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js";
-    import { getFirestore, collection, addDoc, serverTimestamp, query, orderBy, getDocs, doc, setDoc, getDoc, where, limit } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, serverTimestamp, query, orderBy, getDocs, doc, getDoc, where, limit } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyDe-uSTjbvc_I51iB5d5MH8byG8ATQmRa0",
@@ -99,26 +99,20 @@
     const auth = getAuth(app);
     const db = getFirestore(app);
 
-    const postsDiv = document.getElementById("posts");
-    const postForm = document.getElementById("postForm");
-    const postInput = document.getElementById("postInput");
-    const postToggle = document.getElementById("postToggle");
-    const postBar = document.getElementById("postBar");
-    const logoutBtn = document.getElementById("logoutBtn");
-
-    const authModal = document.getElementById("authModal");
-    const loginForm = document.getElementById("loginForm");
-    const loginStatus = document.getElementById("loginStatus");
-    const registerForm = document.getElementById("registerForm");
-    const registerStatus = document.getElementById("registerStatus");
-    const regUsername = document.getElementById("regUsername");
-    const usernameStatus = document.getElementById("usernameStatus");
-
-    // パスワードハッシュ
-    async function hashPassword(pw) {
+    // ユーティリティ関数
+    function escapeHtml(str){
+      return String(str).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+        .replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+    }
+    function linkify(text){
+      const safe = escapeHtml(text);
+      const urlRegex = /(https?:\/\/[^\s]+)/g;
+      return safe.replace(urlRegex, (m)=>`<a href="${m}" target="_blank" rel="noopener">${m}</a>`);
+    }
+    async function hashPassword(pw){
       const enc = new TextEncoder().encode(pw);
       const buf = await crypto.subtle.digest("SHA-256", enc);
-      return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,"0")).join("");
+      return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("");
     }
 
     // セッション管理
@@ -129,6 +123,7 @@
 
     // 投稿読み込み
     async function loadPosts(){
+      const postsDiv = document.getElementById("posts");
       postsDiv.innerHTML="";
       const q = query(collection(db,"communityPosts"), orderBy("createdAt","desc"), limit(50));
       const snap = await getDocs(q);
@@ -142,8 +137,9 @@
           </div>`;
       });
     }
+    loadPosts();
 
-    // 投稿バーの表示切り替え
+    // 投稿バー表示切替
     postToggle.addEventListener("click", () => {
       postBar.classList.toggle("hidden");
     });
@@ -151,20 +147,17 @@
     // 投稿処理
     postForm.addEventListener("submit", async (e) => {
       e.preventDefault();
-      console.log("投稿イベント発火"); // デバッグ用
+      console.log("投稿イベント発火");
 
-      // Firestoreルール用に匿名ログインを確保
       if (!auth.currentUser) {
         await signInAnonymously(auth);
       }
-
       const profUid = getProfileUid();
       if (!profUid) {
         authModal.classList.remove("hidden");
         loginStatus.textContent = "ログインが必要です。";
         return;
       }
-
       const text = postInput.value.trim();
       if (!text) return;
 
@@ -173,6 +166,7 @@
         const nickname = udoc.exists()? (udoc.data().nickname || "匿名") : "匿名";
         await addDoc(collection(db,"communityPosts"), {
           userId: profUid,
+          authUid: auth.currentUser.uid, // 投稿にもauthUidを保存
           nickname,
           text,
           createdAt: serverTimestamp()
@@ -204,7 +198,7 @@
       }
     });
 
-    // 新規登録処理
+    // 新規登録
     registerForm.addEventListener("submit", async (e) => {
       e.preventDefault();
       registerStatus.textContent = "登録中…";
@@ -219,7 +213,6 @@
         return;
       }
 
-      // 重複チェック
       const dupQ = query(collection(db, "users"), where("username", "==", username));
       const dupSnap = await getDocs(dupQ);
       if (!dupSnap.empty) {
@@ -238,6 +231,7 @@
           username,
           nickname,
           passwordHash,
+          authUid: auth.currentUser.uid, // 匿名UIDを紐付け
           createdAt: serverTimestamp()
         });
 
@@ -252,7 +246,7 @@
       }
     });
 
-    // ログイン処理
+    // ログイン
     loginForm.addEventListener("submit", async (e) => {
       e.preventDefault();
       loginStatus.textContent = "認証中…";
@@ -305,7 +299,6 @@
       alert("ログアウトしました。");
     });
 
-    // 初期状態でセッションがあればログアウトボタン表示
     if (getProfileUid()) { logoutBtn.classList.remove("hidden"); }
   </script>
 </body>
