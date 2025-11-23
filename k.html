@@ -81,18 +81,17 @@
 
       <div class="link" id="showRegister">まだ登録していない方はこちら</div>
 
-      <form id="registerForm" class="hidden">
-        <h2>新規登録</h2>
-        <label for="regUsername">ユーザーネーム</label>
-        <input id="regUsername" type="text" maxlength="32" required />
-        <span id="usernameStatus"></span>
-        <label for="regNickname">ニックネーム</label>
-        <input id="regNickname" type="text" maxlength="32" required />
-        <label for="regPassword">パスワード</label>
-        <input id="regPassword" type="password" required />
-        <button class="authBtn" type="submit">登録</button>
-        <div id="registerStatus" class="status"></div>
-      </form>
+<form id="registerForm" class="hidden">
+  <h2>新規登録</h2>
+  <label for="regUsername">ユーザーネーム</label>
+  <input id="regUsername" type="text" maxlength="32" required />
+  <span id="usernameStatus"></span>
+  <label for="regPassword">パスワード</label>
+  <input id="regPassword" type="password" required />
+  <button class="authBtn" type="submit">登録</button>
+  <div id="registerStatus" class="status"></div>
+</form>
+
     </div>
   </div>
   
@@ -131,7 +130,6 @@
   const showRegister   = document.getElementById("showRegister");
   const registerForm   = document.getElementById("registerForm");
   const regUsername    = document.getElementById("regUsername");
-  const regNickname    = document.getElementById("regNickname");
   const regPassword    = document.getElementById("regPassword");
   const usernameStatus = document.getElementById("usernameStatus");
   const registerStatus = document.getElementById("registerStatus");
@@ -169,7 +167,7 @@ async function containsNgWord(text){
       const time = d.createdAt?.toDate?.() ? d.createdAt.toDate().toLocaleString() : "";
       postsDiv.innerHTML += `
         <div class="post">
-          <div class="meta"><span class="nick">${d.nickname||"匿名"}</span>・${time}</div>
+          <div class="meta"><span class="nick">${d.username||"匿名"}</span>・${time}</div>
           <div class="text">${d.text||""}</div>
         </div>`;
     });
@@ -198,19 +196,17 @@ postForm.addEventListener("submit", async (e) => {
 
   try {
     const udoc = await getDoc(doc(db,"users", profUid));
-    const nickname = udoc.exists()? (udoc.data().nickname || "匿名") : "匿名";
+   const username = udoc.exists()? (udoc.data().username || "匿名") : "匿名";
 
-    // 🔎 NGワード判定をここで呼ぶ
-    const isToxic = await containsNgWord(text);
+await addDoc(collection(db,"communityPosts"), {
+  userId: profUid,
+  authUid: auth.currentUser.uid,
+  username,   // ← 表示名として保存
+  text,
+  createdAt: serverTimestamp(),
+  hidden: isToxic
+});
 
-    await addDoc(collection(db,"communityPosts"), {
-      userId: profUid,
-      authUid: auth.currentUser.uid,
-      nickname,
-      text,
-      createdAt: serverTimestamp(),
-      hidden: isToxic   // ← 判定結果を反映
-    });
 
     postInput.value = "";
     loadPosts();
@@ -245,7 +241,6 @@ postForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     registerStatus.textContent = "登録中…";
     const username = regUsername.value.trim();
-    const nickname = regNickname.value.trim();
     const password = regPassword.value;
     if (!username || !nickname || !password) {
       registerStatus.classList.add("error");
@@ -262,13 +257,13 @@ postForm.addEventListener("submit", async (e) => {
     try {
       if (!auth.currentUser) await signInAnonymously(auth);
       const passwordHash = await hashPassword(password);
-      const profileDocRef = await addDoc(collection(db, "users"), {
-        username,
-        nickname,
-        passwordHash,
-        authUid: auth.currentUser.uid,
-        createdAt: serverTimestamp()
-      });
+const profileDocRef = await addDoc(collection(db, "users"), {
+  username,   // ← 表示名として使う
+  passwordHash,
+  authUid: auth.currentUser.uid,
+  createdAt: serverTimestamp()
+});
+
       setProfileUid(profileDocRef.id);
       registerStatus.classList.add("ok");
       registerStatus.textContent = "登録完了。ログイン済みです。";
