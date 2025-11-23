@@ -21,6 +21,16 @@
     #postForm { display:flex; gap:8px; }
     #postInput { flex:1; padding:10px; border-radius:8px; border:1px solid #ccc; }
     #postForm button { background:#3a2f2f; color:#fff; border:none; border-radius:8px; padding:10px 16px; cursor:pointer; }
+    #authModal { position:fixed; inset:0; background:rgba(0,0,0,.5); display:flex; align-items:center; justify-content:center; z-index:1000; }
+    #authBox { background:#fff; border-radius:12px; padding:20px; max-width:420px; width:90%; box-shadow:0 10px 30px rgba(0,0,0,.2); }
+    #authBox h2 { margin:0 0 10px; color:#3a2f2f; }
+    label { display:block; margin:10px 0 4px; font-weight:600; }
+    input { width:100%; padding:10px; border-radius:8px; border:1px solid #ccc; }
+    button.authBtn { margin-top:12px; width:100%; background:#3a2f2f; color:#fff; border:none; border-radius:8px; padding:10px; cursor:pointer; }
+    .status { margin-top:8px; font-size:.9rem; text-align:center; }
+    .error { color:#b00020; }
+    .ok { color:#0a7f58; }
+    #usernameStatus { margin-left:8px; font-weight:bold; }
   </style>
 </head>
 <body>
@@ -42,10 +52,39 @@
     </form>
   </div>
 
+  <div id="authModal" class="hidden">
+    <div id="authBox">
+      <h2>ログイン</h2>
+      <form id="loginForm">
+        <label for="logUsername">ユーザーネーム</label>
+        <input id="logUsername" type="text" required />
+        <label for="logPassword">パスワード</label>
+        <input id="logPassword" type="password" required />
+        <button class="authBtn" type="submit">ログイン</button>
+        <div id="loginStatus" class="status"></div>
+      </form>
+
+      <div class="link" id="showRegister">まだ登録していない方はこちら</div>
+
+      <form id="registerForm" class="hidden">
+        <h2>新規登録</h2>
+        <label for="regUsername">ユーザーネーム</label>
+        <input id="regUsername" type="text" maxlength="32" required />
+        <span id="usernameStatus"></span>
+        <label for="regNickname">ニックネーム</label>
+        <input id="regNickname" type="text" maxlength="32" required />
+        <label for="regPassword">パスワード</label>
+        <input id="regPassword" type="password" required />
+        <button class="authBtn" type="submit">登録</button>
+        <div id="registerStatus" class="status"></div>
+      </form>
+    </div>
+  </div>
+
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
     import { getAuth, signInAnonymously, signOut } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js";
-    import { getFirestore, collection, addDoc, serverTimestamp, query, orderBy, getDocs, doc, getDoc, limit } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, serverTimestamp, query, orderBy, getDocs, doc, getDoc, where, limit } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyDe-uSTjbvc_I51iB5d5MH8byG8ATQmRa0",
@@ -60,15 +99,27 @@
     const auth = getAuth(app);
     const db = getFirestore(app);
 
-    // NGワード判定（Firestoreから取得）
-    async function loadNgWords() {
-      const snap = await getDocs(collection(db, "ngWords"));
-      return snap.docs.map(doc => doc.data().word);
+    // ユーティリティ関数
+    function escapeHtml(str){
+      return String(str).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+        .replace(/"/g,"&quot;").replace(/'/g,"&#39;");
     }
-    async function containsNgWord(text) {
-      const ngWords = await loadNgWords();
-      return ngWords.some(word => text.includes(word));
+    function linkify(text){
+      const safe = escapeHtml(text);
+      const urlRegex = /(https?:\/\/[^\s]+)/g;
+      return safe.replace(urlRegex, (m)=>`<a href="${m}" target="_blank" rel="noopener">${m}</a>`);
     }
+    async function hashPassword(pw){
+      const enc = new TextEncoder().encode(pw);
+      const buf = await crypto.subtle.digest("SHA-256", enc);
+      return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("");
+    }
+
+    // セッション管理
+    const SESSION_KEY = "profileUid";
+    function getProfileUid(){ return localStorage.getItem(SESSION_KEY); }
+    function setProfileUid(uid){ localStorage.setItem(SESSION_KEY, uid); }
+    function clearProfileUid(){ localStorage.removeItem(SESSION_KEY); }
 
     // 投稿読み込み
     async function loadPosts(){
@@ -79,57 +130,184 @@
       snap.forEach(docu=>{
         const d = docu.data();
         const time = d.createdAt?.toDate?.() ? d.createdAt.toDate().toLocaleString() : "";
-        const isMine = localStorage.getItem("profileUid") === d.userId;
-        if (d.hidden && !isMine) return; // 他人には非表示
         postsDiv.innerHTML += `
           <div class="post">
-            <div class="meta"><span class="nick">${d.nickname||"匿名"}</span>・${time}</div>
-            <div class="text">${d.text||""}</div>
+            <div class="meta"><span class="nick">${escapeHtml(d.nickname||"匿名")}</span>・${escapeHtml(time)}</div>
+            <div class="text">${linkify(d.text||"")}</div>
           </div>`;
       });
     }
     loadPosts();
-
-    // 投稿処理
-    postForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      if (!auth.currentUser) await signInAnonymously(auth);
-
-      const text = postInput.value.trim();
-      if (!text) return;
-
-      const profUid = localStorage.getItem("profileUid") || auth.currentUser.uid;
-      const udoc = await getDoc(doc(db,"users", profUid));
-      const nickname = udoc.exists()? (udoc.data().nickname || "匿名") : "匿名";
-
-      const isToxic = await containsNgWord(text);
-
-      await addDoc(collection(db,"communityPosts"), {
-        userId: profUid,
-        authUid: auth.currentUser.uid,
-        nickname,
-        text,
-        createdAt: serverTimestamp(),
-        hidden: isToxic
-      });
-
-      postInput.value = "";
-      loadPosts();
-    });
 
     // 投稿バー表示切替
     postToggle.addEventListener("click", () => {
       postBar.classList.toggle("hidden");
     });
 
-    // ログアウト処理
+// 投稿処理
+postForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  console.log("投稿イベント発火");
+
+  if (!auth.currentUser) {
+    await signInAnonymously(auth);
+  }
+  const profUid = getProfileUid();
+  if (!profUid) {
+    authModal.classList.remove("hidden");
+    loginStatus.textContent = "ログインが必要です。";
+    return;
+  }
+  const text = postInput.value.trim();
+  if (!text) return;
+
+  try {
+    const udoc = await getDoc(doc(db,"users", profUid));
+    const nickname = udoc.exists()? (udoc.data().nickname || "匿名") : "匿名";
+
+    // 🔎 NGワード判定
+    const isToxic = await containsNgWord(text);
+
+    // Firestoreに保存（hiddenフラグ付き）
+    await addDoc(collection(db,"communityPosts"), {
+      userId: profUid,
+      authUid: auth.currentUser.uid,
+      nickname,
+      text,
+      createdAt: serverTimestamp(),
+      hidden: isToxic // ← NGワードなら true
+    });
+
+    postInput.value = "";
+    loadPosts();
+  } catch (err) {
+    alert("投稿エラー: " + (err.code || err.message));
+  }
+});
+
+
+    // 登録フォーム表示
+    showRegister.addEventListener("click", ()=>{
+      registerForm.classList.remove("hidden");
+      showRegister.classList.add("hidden");
+    });
+
+    // ユーザーネーム重複チェック
+    regUsername.addEventListener("input", async () => {
+      const uname = regUsername.value.trim();
+      usernameStatus.textContent = "";
+      if (!uname) return;
+      const q = query(collection(db, "users"), where("username", "==", uname));
+      const snap = await getDocs(q);
+      if (snap.empty) {
+        usernameStatus.textContent = "✔️"; usernameStatus.style.color = "green";
+      } else {
+        usernameStatus.textContent = "✖️"; usernameStatus.style.color = "red";
+      }
+    });
+
+    // 新規登録
+    registerForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      registerStatus.textContent = "登録中…";
+
+      const username = document.getElementById("regUsername").value.trim();
+      const nickname = document.getElementById("regNickname").value.trim();
+      const password = document.getElementById("regPassword").value;
+
+      if (!username || !nickname || !password) {
+        registerStatus.classList.add("error");
+        registerStatus.textContent = "未入力の項目があります。";
+        return;
+      }
+
+      const dupQ = query(collection(db, "users"), where("username", "==", username));
+      const dupSnap = await getDocs(dupQ);
+      if (!dupSnap.empty) {
+        registerStatus.classList.add("error");
+        registerStatus.textContent = "このユーザーネームは既に使われています。";
+        return;
+      }
+
+      try {
+        if (!auth.currentUser) {
+          await signInAnonymously(auth);
+        }
+        const passwordHash = await hashPassword(password);
+
+        const profileDocRef = await addDoc(collection(db, "users"), {
+          username,
+          nickname,
+          passwordHash,
+          authUid: auth.currentUser.uid, // 匿名UIDを紐付け
+          createdAt: serverTimestamp()
+        });
+
+        setProfileUid(profileDocRef.id);
+        registerStatus.classList.add("ok");
+        registerStatus.textContent = "登録完了。ログイン済みです。";
+        authModal.classList.add("hidden");
+        logoutBtn.classList.remove("hidden");
+      } catch (err) {
+        registerStatus.classList.add("error");
+        registerStatus.textContent = `登録失敗: ${err.code || err.message}`;
+      }
+    });
+
+    // ログイン
+    loginForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      loginStatus.textContent = "認証中…";
+      const uname = document.getElementById("logUsername").value.trim();
+      const pass = document.getElementById("logPassword").value;
+
+      if (!uname || !pass) {
+        loginStatus.classList.add("error");
+        loginStatus.textContent = "未入力の項目があります。";
+        return;
+      }
+
+      try {
+        if (!auth.currentUser) {
+          await signInAnonymously(auth);
+        }
+        const qy = query(collection(db,"users"), where("username","==",uname), limit(1));
+        const snap = await getDocs(qy);
+        if (snap.empty) {
+          loginStatus.classList.add("error");
+          loginStatus.textContent = "ユーザーネームが見つかりません。";
+          return;
+        }
+        const docu = snap.docs[0];
+        const data = docu.data();
+        const inputHash = await hashPassword(pass);
+
+        if (data.passwordHash !== inputHash) {
+          loginStatus.classList.add("error");
+          loginStatus.textContent = "パスワードが違います。";
+          return;
+        }
+
+        setProfileUid(docu.id);
+        loginStatus.classList.add("ok");
+        loginStatus.textContent = "ログインしました。";
+        authModal.classList.add("hidden");
+        logoutBtn.classList.remove("hidden");
+      } catch (err) {
+        loginStatus.classList.add("error");
+        loginStatus.textContent = `ログイン失敗: ${err.code || err.message}`;
+      }
+    });
+
+    // ログアウト
     logoutBtn.addEventListener("click", async () => {
-      localStorage.removeItem("profileUid");
+      clearProfileUid();
       logoutBtn.classList.add("hidden");
       await signOut(auth);
-      alert("ログアウトしました");
+      alert("ログアウトしました。");
     });
+
+    if (getProfileUid()) { logoutBtn.classList.remove("hidden"); }
   </script>
 </body>
 </html>
-
