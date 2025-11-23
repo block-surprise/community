@@ -108,30 +108,6 @@
     const auth = getAuth(app);
     const db = getFirestore(app);
 
-      import { signOut } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js";
-
-  let pressTimer;
-  const title = document.getElementById("title");
-  const logoutBtn = document.getElementById("logoutBtn");
-
-  // タイトルを長押しするとログアウトボタンが出る
-  title.addEventListener("mousedown", () => {
-    pressTimer = setTimeout(() => {
-      logoutBtn.classList.remove("hidden");
-    }, 3000); // 3秒長押しで表示
-  });
-  title.addEventListener("mouseup", () => {
-    clearTimeout(pressTimer);
-  });
-
-  // ログアウト処理
-  logoutBtn.addEventListener("click", async () => {
-    await signOut(auth);
-    clearProfileUid(); // localStorageのUIDも削除
-    logoutBtn.classList.add("hidden");
-    document.getElementById("posts").innerHTML = "";
-    alert("ログアウトしました");
-  });
 
     // ユーティリティ関数
     function escapeHtml(str){
@@ -342,6 +318,44 @@ postForm.addEventListener("submit", async (e) => {
     });
 
     if (getProfileUid()) { logoutBtn.classList.remove("hidden"); }
+  </script>
+  <script>
+    <script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
+  import { getAuth, signInAnonymously, signOut } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js";
+  import { getFirestore, collection, addDoc, serverTimestamp, query, orderBy, getDocs, doc, getDoc, where, limit } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
+
+  const firebaseConfig = { ... };
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  // 🔎 NGワード判定の仮関数
+  async function containsNgWord(text){ return false; }
+
+  let pressTimer;
+  const title = document.getElementById("title");
+  const logoutBtn = document.getElementById("logoutBtn");
+
+  // タイトルを長押しするとログアウトボタンが出る
+  title.addEventListener("mousedown", () => {
+    pressTimer = setTimeout(() => {
+      logoutBtn.classList.remove("hidden");
+    }, 3000);
+  });
+  title.addEventListener("mouseup", () => {
+    clearTimeout(pressTimer);
+  });
+
+  // ログアウト処理
+  logoutBtn.addEventListener("click", async () => {
+    await signOut(auth);
+    clearProfileUid();
+    logoutBtn.classList.add("hidden");
+    document.getElementById("posts").innerHTML = "";
+    alert("ログアウトしました");
+  });
+
   </script>
 </body>
 </html>
