@@ -198,14 +198,17 @@ postForm.addEventListener("submit", async (e) => {
     const udoc = await getDoc(doc(db,"users", profUid));
    const username = udoc.exists()? (udoc.data().username || "匿名") : "匿名";
 
+const isToxic = await containsNgWord(text);
+
 await addDoc(collection(db,"communityPosts"), {
   userId: profUid,
   authUid: auth.currentUser.uid,
-  username,   // ← 表示名として保存
+  username,
   text,
   createdAt: serverTimestamp(),
   hidden: isToxic
 });
+
 
 
     postInput.value = "";
@@ -281,11 +284,12 @@ const profileDocRef = await addDoc(collection(db, "users"), {
     loginStatus.textContent = "認証中…";
     const uname = logUsername.value.trim();
     const pass = logPassword.value;
-    if (!uname || !pass) {
-      loginStatus.classList.add("error");
-      loginStatus.textContent = "未入力の項目があります。";
-      return;
-    }
+if (!username || !password) {
+  registerStatus.classList.add("error");
+  registerStatus.textContent = "未入力の項目があります。";
+  return;
+}
+
     try {
       if (!auth.currentUser) await signInAnonymously(auth);
       const qy = query(collection(db,"users"), where("username","==",uname), limit(1));
