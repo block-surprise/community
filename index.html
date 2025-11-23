@@ -155,6 +155,11 @@
     }
     loadPosts();
 
+  // 投稿バー表示切替
+  postToggle.addEventListener("click", () => {
+    postBar.classList.toggle("hidden");
+  });
+
     // 投稿処理（シャドウバン保存）
     postForm.addEventListener("submit", async (e) => {
       e.preventDefault();
