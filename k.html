@@ -83,6 +83,8 @@
 
 <form id="registerForm" class="hidden">
   <h2>新規登録</h2>
+  <label for="regEmail">メールアドレス</label>
+<input id="regEmail" type="email" required />
   <label for="regUsername">ユーザーネーム</label>
   <input id="regUsername" type="text" maxlength="32" required />
   <span id="usernameStatus"></span>
@@ -130,6 +132,7 @@
   const showRegister   = document.getElementById("showRegister");
   const registerForm   = document.getElementById("registerForm");
   const regUsername    = document.getElementById("regUsername");
+  const regEmail = document.getElementById("regEmail");
   const regPassword    = document.getElementById("regPassword");
   const usernameStatus = document.getElementById("usernameStatus");
   const registerStatus = document.getElementById("registerStatus");
@@ -240,32 +243,44 @@ await addDoc(collection(db,"communityPosts"), {
   });
 
   // 新規登録
-  registerForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    registerStatus.textContent = "登録中…";
-    const username = regUsername.value.trim();
-    const password = regPassword.value;
-    if (!username || !nickname || !password) {
-      registerStatus.classList.add("error");
-      registerStatus.textContent = "未入力の項目があります。";
-      return;
-    }
-    const dupQ = query(collection(db, "users"), where("username", "==", username));
-    const dupSnap = await getDocs(dupQ);
-    if (!dupSnap.empty) {
-      registerStatus.classList.add("error");
-      registerStatus.textContent = "このユーザーネームは既に使われています。";
-      return;
-    }
-    try {
-      if (!auth.currentUser) await signInAnonymously(auth);
-      const passwordHash = await hashPassword(password);
-const profileDocRef = await addDoc(collection(db, "users"), {
-  username,   // ← 表示名として使う
-  passwordHash,
-  authUid: auth.currentUser.uid,
-  createdAt: serverTimestamp()
-});
+registerForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const email = regEmail.value.trim();
+  const username = regUsername.value.trim();
+  const password = regPassword.value;
+
+  if (!email || !username || !password) {
+    registerStatus.textContent = "未入力の項目があります。";
+    return;
+  }
+
+  // メールアドレス重複チェック
+  const q = query(collection(db, "users"), where("email", "==", email));
+  const snap = await getDocs(q);
+  if (!snap.empty) {
+    registerStatus.textContent = "このメールアドレスは既に登録されています。";
+    return;
+  }
+
+  // ユーザーネーム重複チェック
+  const dupQ = query(collection(db, "users"), where("username", "==", username));
+  const dupSnap = await getDocs(dupQ);
+  if (!dupSnap.empty) {
+    registerStatus.textContent = "このユーザーネームは既に使われています。";
+    return;
+  }
+
+  // パスワードハッシュ化
+  const passwordHash = await hashPassword(password);
+
+  // Firestoreに保存（メールは裏で管理用）
+  const profileDocRef = await addDoc(collection(db, "users"), {
+    username,
+    email,
+    passwordHash,
+    authUid: auth.currentUser?.uid || null,
+    createdAt: serverTimestamp()
+  });
 
       setProfileUid(profileDocRef.id);
       registerStatus.classList.add("ok");
@@ -279,34 +294,34 @@ const profileDocRef = await addDoc(collection(db, "users"), {
   });
 
   // ログイン
-  loginForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    loginStatus.textContent = "認証中…";
-    const uname = logUsername.value.trim();
-    const pass = logPassword.value;
-if (!username || !password) {
-  registerStatus.classList.add("error");
-  registerStatus.textContent = "未入力の項目があります。";
-  return;
-}
+loginForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const uname = logUsername.value.trim();
+  const pass = logPassword.value;
 
-    try {
-      if (!auth.currentUser) await signInAnonymously(auth);
-      const qy = query(collection(db,"users"), where("username","==",uname), limit(1));
-      const snap = await getDocs(qy);
-      if (snap.empty) {
-        loginStatus.classList.add("error");
-        loginStatus.textContent = "ユーザーネームが見つかりません。";
-        return;
-      }
-      const docu = snap.docs[0];
-      const data = docu.data();
-      const inputHash = await hashPassword(pass);
-      if (data.passwordHash !== inputHash) {
-        loginStatus.classList.add("error");
-        loginStatus.textContent = "パスワードが違います。";
-        return;
-      }
+  if (!uname || !pass) {
+    loginStatus.textContent = "未入力の項目があります。";
+    return;
+  }
+
+  // ユーザーネームで検索
+  const qy = query(collection(db,"users"), where("username","==",uname), limit(1));
+  const snap = await getDocs(qy);
+
+  if (snap.empty) {
+    loginStatus.textContent = "ユーザーネームが見つかりません。";
+    return;
+  }
+
+  const docu = snap.docs[0];
+  const data = docu.data();
+
+  // パスワード照合
+  const inputHash = await hashPassword(pass);
+  if (data.passwordHash !== inputHash) {
+    loginStatus.textContent = "パスワードが違います。";
+    return;
+  }
       setProfileUid(docu.id);
       loginStatus.classList.add("ok");
       loginStatus.textContent = "ログインしました。";
