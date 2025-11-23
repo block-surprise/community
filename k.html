@@ -151,6 +151,11 @@
     const buf = await crypto.subtle.digest("SHA-256", enc);
     return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("");
   }
+async function containsNgWord(text){
+  const snap = await getDocs(collection(db,"ngWords"));
+  const words = snap.docs.map(d => d.data().word); // { word: "禁止語" } を想定
+  return words.some(w => text.includes(w));
+}
 
   // 投稿読み込み
   async function loadPosts(){
@@ -177,34 +182,43 @@
   });
 
   // 投稿処理
-  postForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    if (!auth.currentUser) await signInAnonymously(auth);
-    const profUid = getProfileUid();
-    if (!profUid) {
-      authModal.classList.remove("hidden");
-      loginStatus.textContent = "ログインが必要です。";
-      return;
-    }
-    const text = postInput.value.trim();
-    if (!text) return;
-    try {
-      const udoc = await getDoc(doc(db,"users", profUid));
-      const nickname = udoc.exists()? (udoc.data().nickname || "匿名") : "匿名";
-      await addDoc(collection(db,"communityPosts"), {
-        userId: profUid,
-        authUid: auth.currentUser.uid,
-        nickname,
-        text,
-        createdAt: serverTimestamp(),
-        hidden: false
-      });
-      postInput.value = "";
-      loadPosts();
-    } catch (err) {
-      alert("投稿エラー: " + (err.code || err.message));
-    }
-  });
+postForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  if (!auth.currentUser) await signInAnonymously(auth);
+
+  const profUid = getProfileUid();
+  if (!profUid) {
+    authModal.classList.remove("hidden");
+    loginStatus.textContent = "ログインが必要です。";
+    return;
+  }
+
+  const text = postInput.value.trim();
+  if (!text) return;
+
+  try {
+    const udoc = await getDoc(doc(db,"users", profUid));
+    const nickname = udoc.exists()? (udoc.data().nickname || "匿名") : "匿名";
+
+    // 🔎 NGワード判定をここで呼ぶ
+    const isToxic = await containsNgWord(text);
+
+    await addDoc(collection(db,"communityPosts"), {
+      userId: profUid,
+      authUid: auth.currentUser.uid,
+      nickname,
+      text,
+      createdAt: serverTimestamp(),
+      hidden: isToxic   // ← 判定結果を反映
+    });
+
+    postInput.value = "";
+    loadPosts();
+  } catch (err) {
+    alert("投稿エラー: " + (err.code || err.message));
+  }
+});
+
 
   // 登録フォーム表示
   showRegister.addEventListener("click", ()=>{
