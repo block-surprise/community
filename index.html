@@ -134,63 +134,61 @@
   function setProfileUid(uid){ localStorage.setItem(SESSION_KEY, uid); }
   function clearProfileUid(){ localStorage.removeItem(SESSION_KEY); }
 
-  // 投稿読み込み
-  async function loadPosts(){
-    const postsDiv = document.getElementById("posts");
-    postsDiv.innerHTML="";
-    const q = query(collection(db,"communityPosts"), orderBy("createdAt","desc"), limit(50));
-    const snap = await getDocs(q);
-    snap.forEach(docu=>{
-      const d = docu.data();
-      const time = d.createdAt?.toDate?.() ? d.createdAt.toDate().toLocaleString() : "";
-      postsDiv.innerHTML += `
-        <div class="post">
-          <div class="meta"><span class="nick">${escapeHtml(d.nickname||"匿名")}</span>・${escapeHtml(time)}</div>
-          <div class="text">${linkify(d.text||"")}</div>
-        </div>`;
-    });
-  }
-  loadPosts();
+    // 投稿読み込み（シャドウバン対応）
+    async function loadPosts(){
+      const postsDiv = document.getElementById("posts");
+      postsDiv.innerHTML="";
+      const q = query(collection(db,"communityPosts"), orderBy("createdAt","desc"), limit(50));
+      const snap = await getDocs(q);
+      snap.forEach(docu=>{
+        const d = docu.data();
+        const isMine = auth.currentUser && auth.currentUser.uid === d.authUid;
+        if (d.hidden && !isMine) return; // 他人には非表示
 
-  // 投稿バー表示切替
-  postToggle.addEventListener("click", () => {
-    postBar.classList.toggle("hidden");
-  });
-
-  // 投稿処理
-  postForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    if (!auth.currentUser) await signInAnonymously(auth);
-
-    const profUid = getProfileUid();
-    if (!profUid) {
-      authModal.classList.remove("hidden");
-      loginStatus.textContent = "ログインが必要です。";
-      return;
-    }
-    const text = postInput.value.trim();
-    if (!text) return;
-
-    try {
-      const udoc = await getDoc(doc(db,"users", profUid));
-      const nickname = udoc.exists()? (udoc.data().nickname || "匿名") : "匿名";
-      const isToxic = await containsNgWord(text);
-
-      await addDoc(collection(db,"communityPosts"), {
-        userId: profUid,
-        authUid: auth.currentUser.uid,
-        nickname,
-        text,
-        createdAt: serverTimestamp(),
-        hidden: isToxic
+        const time = d.createdAt?.toDate?.() ? d.createdAt.toDate().toLocaleString() : "";
+        postsDiv.innerHTML += `
+          <div class="post">
+            <div class="meta"><span class="nick">${escapeHtml(d.nickname||"匿名")}</span>・${escapeHtml(time)}</div>
+            <div class="text">${linkify(d.text||"")}</div>
+          </div>`;
       });
-
-      postInput.value = "";
-      loadPosts();
-    } catch (err) {
-      alert("投稿エラー: " + (err.code || err.message));
     }
-  });
+    loadPosts();
+
+    // 投稿処理（シャドウバン保存）
+    postForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!auth.currentUser) await signInAnonymously(auth);
+
+      const profUid = getProfileUid();
+      if (!profUid) {
+        authModal.classList.remove("hidden");
+        loginStatus.textContent = "ログインが必要です。";
+        return;
+      }
+      const text = postInput.value.trim();
+      if (!text) return;
+
+      try {
+        const udoc = await getDoc(doc(db,"users", profUid));
+        const nickname = udoc.exists()? (udoc.data().nickname || "匿名") : "匿名";
+        const isToxic = await containsNgWord(text);
+
+        await addDoc(collection(db,"communityPosts"), {
+          userId: profUid,
+          authUid: auth.currentUser.uid,
+          nickname,
+          text,
+          createdAt: serverTimestamp(),
+          hidden: isToxic // NGワードなら true
+        });
+
+        postInput.value = "";
+        loadPosts();
+      } catch (err) {
+        alert("投稿エラー: " + (err.code || err.message));
+      }
+    });
 
   // 登録フォーム表示
   showRegister.addEventListener("click", ()=>{
