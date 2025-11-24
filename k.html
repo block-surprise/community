@@ -185,7 +185,6 @@ async function containsNgWord(text){
   // 投稿処理
 postForm.addEventListener("submit", async (e) => {
   e.preventDefault();
-  if (!auth.currentUser) await signInAnonymously(auth);
 
   const profUid = getProfileUid();
   if (!profUid) {
@@ -199,20 +198,18 @@ postForm.addEventListener("submit", async (e) => {
 
   try {
     const udoc = await getDoc(doc(db,"users", profUid));
-   const username = udoc.exists()? (udoc.data().username || "匿名") : "匿名";
+    const username = udoc.exists()? (udoc.data().username || "匿名") : "匿名";
 
-const isToxic = await containsNgWord(text);
+    const isToxic = await containsNgWord(text);
 
-await addDoc(collection(db,"communityPosts"), {
-  userId: profUid,
-  authUid: auth.currentUser.uid,
-  username,
-  text,
-  createdAt: serverTimestamp(),
-  hidden: isToxic
-});
-
-
+    await addDoc(collection(db,"communityPosts"), {
+      userId: profUid,
+      authUid: profUid,   // ← FirestoreのユーザーIDを使う
+      username,
+      text,
+      createdAt: serverTimestamp(),
+      hidden: isToxic
+    });
 
     postInput.value = "";
     loadPosts();
@@ -220,6 +217,7 @@ await addDoc(collection(db,"communityPosts"), {
     alert("投稿エラー: " + (err.code || err.message));
   }
 });
+
 
 
   // 登録フォーム表示
