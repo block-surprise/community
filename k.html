@@ -252,44 +252,46 @@ registerForm.addEventListener("submit", async (e) => {
     return;
   }
 
-  // メールアドレス重複チェック
-  const q = query(collection(db, "users"), where("email", "==", email));
-  const snap = await getDocs(q);
-  if (!snap.empty) {
-    registerStatus.textContent = "このメールアドレスは既に登録されています。";
-    return;
-  }
-
-  // ユーザーネーム重複チェック
-  const dupQ = query(collection(db, "users"), where("username", "==", username));
-  const dupSnap = await getDocs(dupQ);
-  if (!dupSnap.empty) {
-    registerStatus.textContent = "このユーザーネームは既に使われています。";
-    return;
-  }
-
-  // パスワードハッシュ化
-  const passwordHash = await hashPassword(password);
-
-  // Firestoreに保存（メールは裏で管理用）
-  const profileDocRef = await addDoc(collection(db, "users"), {
-    username,
-    email,
-    passwordHash,
-    authUid: auth.currentUser?.uid || null,
-    createdAt: serverTimestamp()
-  });
-
-      setProfileUid(profileDocRef.id);
-      registerStatus.classList.add("ok");
-      registerStatus.textContent = "登録完了。ログイン済みです。";
-      authModal.classList.add("hidden");
-      logoutBtn.classList.remove("hidden");
-    } catch (err) {
-      registerStatus.classList.add("error");
-      registerStatus.textContent = `登録失敗: ${err.code || err.message}`;
+  try {
+    // メールアドレス重複チェック
+    const q = query(collection(db, "users"), where("email", "==", email));
+    const snap = await getDocs(q);
+    if (!snap.empty) {
+      registerStatus.textContent = "このメールアドレスは既に登録されています。";
+      return;
     }
-  });
+
+    // ユーザーネーム重複チェック
+    const dupQ = query(collection(db, "users"), where("username", "==", username));
+    const dupSnap = await getDocs(dupQ);
+    if (!dupSnap.empty) {
+      registerStatus.textContent = "このユーザーネームは既に使われています。";
+      return;
+    }
+
+    // パスワードハッシュ化
+    const passwordHash = await hashPassword(password);
+
+    // Firestoreに保存（メールは裏で管理用）
+    const profileDocRef = await addDoc(collection(db, "users"), {
+      username,
+      email,
+      passwordHash,
+      authUid: auth.currentUser?.uid || null,
+      createdAt: serverTimestamp()
+    });
+
+    setProfileUid(profileDocRef.id);
+    registerStatus.classList.add("ok");
+    registerStatus.textContent = "登録完了。ログイン済みです。";
+    authModal.classList.add("hidden");
+    logoutBtn.classList.remove("hidden");
+
+  } catch (err) {
+    registerStatus.classList.add("error");
+    registerStatus.textContent = `登録失敗: ${err.code || err.message}`;
+  }
+});
 
   // ログイン
 loginForm.addEventListener("submit", async (e) => {
