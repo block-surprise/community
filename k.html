@@ -204,7 +204,7 @@ postForm.addEventListener("submit", async (e) => {
 
     await addDoc(collection(db,"communityPosts"), {
       userId: profUid,
-      authUid: profUid,   // ← FirestoreのユーザーIDを使う
+      authUid: auth.currentUser.uid,   // ← 修正
       username,
       text,
       createdAt: serverTimestamp(),
